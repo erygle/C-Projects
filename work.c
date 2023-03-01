@@ -3,7 +3,7 @@
 #include<time.h>
 #include<stdbool.h>
 #include<string.h>
-
+//github kontrol
 #define MAX_VALUE 10000
 #define MIN_VALUE 5000
 #define RANGE 5000
