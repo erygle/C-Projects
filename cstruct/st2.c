@@ -1,6 +1,6 @@
 #include<stdint.h>
 #include<stdio.h>
-typedef struct{
+typedef struct hex{
     int num;
     char letter;
 }hex;
