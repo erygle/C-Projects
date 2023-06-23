@@ -1,6 +1,6 @@
 #include<stdio.h>
 #include<stdlib.h>
-#include<time.h>
+//#include<time.h>
 
 int addNode(int data);
 int addNodeHead(int data);
@@ -19,7 +19,7 @@ int main(int argc, char const *argv[]){
     addNodeHead(4);
     addNode(3);
     printNode();
-    deleteNode(4);
+    deleteNode(3);
     printNode();
     return 0;
 }
