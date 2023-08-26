@@ -60,40 +60,49 @@ BYTE mean(BYTE *data,LONG h,LONG rowsize);
 BYTE maxminmean(BYTE *data,LONG h,long rowsize);
 void threshold(IMAGE *image);
 void lowpassFilter(IMAGE *image,double filter[3][3]);
+void highpassFilter(IMAGE *image,double filter[3][3]);
 BYTE median(BYTE *mask);
 void medianFilter(IMAGE *image);
 void swap(BYTE *a,BYTE *b);
 void addNoise(IMAGE *image);
+void findMinMax(IMAGE *image,int *min,int *max);
+void stretch(IMAGE *image,int MIN,int MAX);
+BYTE findMin(IMAGE *image);
+BYTE findMax(IMAGE *image);
+
+
 
 int main(int argc, char const *argv[]){
     char *fname = "kelebek.bmp";
     IMAGE *image = (IMAGE*)malloc(sizeof(IMAGE));
     image = imageRead(image,fname);
-    double mask[3][3] = {0,1,0,
-                         1,-4,1,
-                         0,1,0};
-    double mask2[3][3] = {0,2,0,
-                         2,-8,2,
-                         0,2,0};
-    double mask3[3][3] = {0,5./4,0,
-                         5./4,-5,5./4,
-                         0,5./4,0};
+    //double filter[3][3] = {0,1,0,1,-4,1,0,1,0};//laplacian
+    //double filter[3][3]={0,1,0,0,-2,0,0,1,0};//yatay
+	//double filter[3][3]={0,0,0,1,-2,1,0,0,0};//dikey
+	//double filter[3][3]={0,-1,0,-1,5,-1,0,-1,0};//sharpened
+	double filter[3][3]={1,1,1,1,-8,1,1,1,1};//variation of laplacian 
+	//double filter[3][3]={-1,-2,-1,0,0,0,1,2,1};//sobel 1
+	//double filter[3][3]={-1,0,1,-2,0,2,-1,0,1};//sobel 2
+
     //setZero(image); //set image all pixels to black
     //setDefault(image);
+    
     //histogram(image);
     //histogramEqualization(image);
+    
     //reverseImage(image);
     //changePalette(image);
+    
     //threshold(image);
-    lowpassFilter(image,mask);
-    //threshold(image);
-    //histogramEqualization(image);
-    //reverseImage(image);
+    
+    //lowpassFilter(image,filter);
+    //highpassFilter(image,filter);
     //addNoise(image);
     //medianFilter(image);
+    stretch(image,50,100);
     imageWrite(image,"main.bmp");
     free(image);
-    return 0;
+    return 0;   
 }
 
 IMAGE *imageRead(IMAGE *image,char *fname){
@@ -149,6 +158,7 @@ void setZero(IMAGE *image){
     rowsize = (image->bmpih.biw * image->bmpih.bibitcount+31)/32*4;
     size = rowsize * image->bmpih.bih;
     for(int i=0 ; i<size ; i++)image->data[i] = ((image->data[i]*15)+10) % 255;
+    for(int i=0 ; i<size ; i++)image->data[i] = 255;
 }
 
 void setDefault(IMAGE *image){
@@ -173,6 +183,7 @@ void histogram(IMAGE *image,double hist[]){
     LONG r,rowsize,size;
     rowsize = (image->bmpih.biw * image->bmpih.bibitcount+31)/32*4;
     size = rowsize * image->bmpih.bih;
+    
     for(int i=0 ; i<size ; i++)hist[image->data[i]]++;
 }
 void histogramEqualization(IMAGE *image){
@@ -182,22 +193,29 @@ void histogramEqualization(IMAGE *image){
     w = image->bmpih.biw;
     rowsize = (w * image->bmpih.bibitcount+31)/32*4;
     size = rowsize * h;
+
     histogram(image,hist);
-    for(int i=0 ; i<256 ; i++)hist[i] /= (h*rowsize);
+
     for(int i=0 ; i<256 ; i++){
-        t+=hist[i];
+        hist[i] = hist[i] / (h*rowsize);
+    }
+    
+    for(int i=0 ; i<256 ; i++){
+        t += hist[i];
         hist[i] = (int)(t*255);
     }
     for(int i=0 ; i<size ; i++)
-        image->data[i] = (BYTE)hist[image->data[i]];
+        image->data[i] = (BYTE) hist[image->data[i]];
 
 }
+
 void reverseImage(IMAGE *image){
     LONG h,w,rowsize,size;
     h = image->bmpih.bih;
     w = image->bmpih.biw;
     rowsize = (w * image->bmpih.bibitcount+31)/32*4;
     size = rowsize *h;
+
     for(int i=0 ; i<size ; i++){
         image->data[i] = 255 - image->data[i];
     }
@@ -237,16 +255,21 @@ void threshold(IMAGE *image,LONG t){
     w=image->bmpih.biw;
     h=image->bmpih.bih;
     rowsize = (w*image->bmpih.bibitcount+31)/32*4;
+
+
     for(int i=0 ; i<rowsize*h ; i++){
         if(image->data[i]>t)image->data[i]=255;
         else image->data[i]=0;
     }
 }
+
 void threshold(IMAGE *image){
     LONG rowsize,h,w;
     h = image->bmpih.bih;
     w = image->bmpih.biw;
     rowsize = (w*image->bmpih.bibitcount+31)/32*4;
+
+
     BYTE t = mean(image->data,h,rowsize);
     for(int i=0 ; i<rowsize*h ; i++){
         if(image->data[i]>t)image->data[i]=255;
@@ -259,12 +282,14 @@ void lowpassFilter(IMAGE *image, double filter[3][3]){
     w=image->bmpih.biw;
     rowsize = (image->bmpih.bibitcount * w+31)/32*4;
     size = rowsize * h;
+
     BYTE mask[3][3];
     double sum;
     BYTE *data;
     if(data == NULL)exit(1);
     data = (BYTE*)calloc(size,sizeof(BYTE));
     memcpy(data,image->data,size);
+    
     for(int i = 1 ; i<h-1 ; i++){
         for(int j = 1 ; j<rowsize-1 ; j++){
             for(int k = -1 ; k<2 ; k++){
@@ -280,6 +305,37 @@ void lowpassFilter(IMAGE *image, double filter[3][3]){
             }
             if(sum > 255)sum=255;
             if(sum < 0)sum=0;
+            image->data[i*rowsize+j] = (BYTE)sum;
+        }
+    }
+    free(data);
+}
+void highpassFilter(IMAGE *image,double filter[3][3]){
+    int h,w,rowsize,i,j,k,l;
+	BYTE mask[3][3];
+	h=image->bmpih.bih;
+	w=image->bmpih.biw;
+	double sum;
+	BYTE *data;
+    if(data==NULL)exit(1);
+    rowsize = (image->bmpih.bibitcount * w +31)/32*4;
+    data = (BYTE*)calloc(h*rowsize,sizeof(BYTE));
+    memcpy(data,image->data,h*rowsize);
+    for(i = 1 ; i<h-1 ; i++){
+        for(j = 1 ; j<rowsize-1 ; j++){
+            for(k=-1 ; k<2 ; k++){
+                for(l=-1 ; l<2 ; l++){
+                    mask[k+1][l+1] = data[(i+k)*rowsize + j + l];
+                }
+            }
+            sum = 0;
+            for(k = 0 ; k<3 ; k++){
+                for(l = 0 ; l<3 ; l++){
+                    sum += mask[k][l] * filter[k][l];
+                }
+            }
+            if(sum<0)sum=0;
+            if(sum>255)sum=255;
             image->data[i*rowsize+j] = (BYTE)sum;
         }
     }
@@ -325,6 +381,7 @@ void medianFilter(IMAGE *image){
     free(data);
 }
 
+
 void addNoise(IMAGE *image){
     srand(time(NULL));
     int rowsize,size,h,w;
@@ -344,4 +401,63 @@ void addNoise(IMAGE *image){
         image->data[rnd] = 255;
     }
     return;
+}
+void findMinMax(IMAGE *image,int *min,int *max){
+    int rowsize,size,h,w;
+    h = image->bmpih.bih;
+    w = image->bmpih.biw;
+    rowsize = (image->bmpih.bibitcount*w+31)/32*4;
+    size = rowsize*h;
+    *max = image->data[0];
+    *min = image->data[0];
+    for(int i=1 ; i<size ; i++){
+        if(image->data[i] < *min)*min = image->data[i];
+        if(image->data[i] > *max)*max = image->data[i]; 
+    }
+}
+
+void stretch(IMAGE *image,int MIN,int MAX){
+    int rowsize,size,h,w;
+    h = image->bmpih.bih;
+    w = image->bmpih.biw;
+    rowsize = (image->bmpih.bibitcount*w+31)/32*4;
+    size = rowsize*h;
+    BYTE min,max;
+    min = findMin(image);
+    max = findMax(image);
+    //findMinMax(image,&min,&max);
+    for(int i=0 ; i<size ; i++){
+        image->data[i] = (MAX - MIN)*(image->data[i]-min)/(max-min)+MIN;
+    }
+}
+BYTE findMin(IMAGE *image){
+    int min,max,rowsize,size,h,w;
+    h = image->bmpih.bih;
+    w = image->bmpih.biw;
+    rowsize = (image->bmpih.bibitcount*w+31)/32*4;
+    size = rowsize*h;
+
+    min = image->data[0];
+    for(int i=1 ; i<size ; i++){
+        if(min>image->data[i]){
+            min = image->data[i];
+        }
+    }
+    return min;
+}
+BYTE findMax(IMAGE *image){
+    int min,max,rowsize,size,h,w;
+    h = image->bmpih.bih;
+    w = image->bmpih.biw;
+    rowsize = (image->bmpih.bibitcount*w+31)/32*4;
+    size = rowsize*h;
+
+    max = image->data[0];
+    for(int i=1 ; i<size ;i++){
+        if(max < image->data[i]){
+            max = image->data[i];        
+        }
+    }
+    
+    return max;
 }
